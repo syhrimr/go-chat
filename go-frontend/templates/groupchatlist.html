@@ -1,0 +1,258 @@
+{{ template "header.html" .}}
+<div class="container">
+    <h1>Rooms</h1>
+    <ul class="list-group" id="groupchats"></ul>
+
+    <div class="row rounded-lg overflow-hidden shadow">
+        <!-- Users box-->
+        <div class="col-5 px-0 bg-white">
+            <div class="bg-white">
+                <div class="messages-box">
+                    <div class="list-group rounded-0" id="groupchat-list">
+                        <a class="list-group-item list-group-item-action rounded-0" onclick="createRoom(this)">
+                            <div class="media"><img class="room-img" src="https://img.icons8.com/ios/64/000000/create-new.png" alt="user" width="50" class="rounded-circle" style="float: left">
+                                <div class="media-body ml-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <h6 class="mb-0 room-name">Create Room</h6>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Chat Box-->
+        <div class="col-7 px-0">
+            <div class="px-4 py-5 chat-box bg-white" id="chat-box">
+            </div>
+
+            <!-- Typing area -->
+            <div class="input-group">
+                <input type="text" placeholder="Type a message" id="text-to-send" aria-describedby="button-addon2" class="form-control rounded-0 border-0 py-4 bg-light">
+                <div class="input-group-append">
+                    <button id="button-addon2" type="button" class="btn btn-link send-btn" onclick="sendMesageToRoom()"> <i class="fa fa-paper-plane"></i></button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<a class="list-group-item list-group-item-action rounded-0" style="display: none;" id="groupchat-item-template" onclick="connectRoom(this)">
+    <div class="media"><img class="room-img" src="https://res.cloudinary.com/mhmd/image/upload/v1564960395/avatar_usae7z.svg" alt="user" width="50" class="rounded-circle" style="float: left">
+        <div class="media-body ml-4">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <h6 class="mb-0 room-name">Jason Doe</h6>
+            </div>
+        </div>
+    </div>
+</a>
+
+<!-- Sender Message-->
+<div class="media w-50 mb-3" style="display: none;" id="sender-msg-template">
+    <img src="https://res.cloudinary.com/mhmd/image/upload/v1564960395/avatar_usae7z.svg" alt="user" width="50" class="rounded-circle user-prof-pic" style="float:left;">
+    <div class="media-body ml-3" style="float:left">
+        <div class="bg-light rounded py-2 px-3 mb-2">
+            <p class="text-small mb-0 text-muted text-message">Test which is a new approach all solutions</p>
+        </div>
+        <p class="small text-muted date-received">12:00 PM | Aug 13</p>
+    </div>
+    <div class="clearfix"></div>
+</div>
+
+<!-- Reciever Message-->
+<div class="media w-50 ml-auto mb-3" style="display: none;" id="receiver-msg-template">
+    <div class="media-body">
+        <div class="bg-primary rounded py-2 px-3 mb-2">
+            <p class="text-small mb-0 text-white text-message">Test which is a new approach to have all solutions</p>
+        </div>
+        <p class="small text-muted date-received">12:00 PM | Aug 13</p>
+    </div>
+</div>
+
+<!--Chat welcome msg-->
+<div class="media-body" id="chat-welcome" style="display: none">
+    <div class="bg-dark rounded py-2 px-3 mb-2">
+        <p class="text-small mb-0 text-white text-message">Welcome! Select group to start a chat.</p>
+    </div>
+</div>
+
+<script>
+    var host = '{{ .gc_host }}'
+    var conn;
+
+
+    // TODO
+    function createRoom() {
+
+    }
+
+    function connectRoom(element) {
+        if (conn != undefined) {
+            conn.close()
+        }
+
+        $("#chat-box").html("");
+
+        $("#text-to-send").removeAttr("disabled");
+        $(".send-btn").removeAttr("disabled");
+        $("#text-to-send").focus();
+
+        $("#groupchat-list > a").each(function() {
+            $(this).removeClass("active")
+            $(this).removeClass("text-white")
+        })
+
+        let room_id = $(element).attr("room-id")
+        $(element).addClass("active")
+        $(element).addClass("text-white")
+
+        connectionStr = "ws://skilvul-gc.com:90/ws?room_id=" + room_id + "&authToken=" + getCookie("access_token")
+
+        this.conn = new WebSocket(connectionStr);
+        this.conn.onclose = function(evt) {
+
+        };
+        this.conn.onmessage = function(evt) {
+            //let message = evt.data.split('\n')
+            let msgReceived
+            try {
+                msgReceived = JSON.parse(evt.data)
+
+                if (msgReceived.chats != undefined) {
+                    initMessages(msgReceived.chats)
+                    return
+                }
+
+            } catch (e) {
+                return
+            }
+
+            let textTemplate;
+            let jwtToken = getCookie("access_token")
+            let parsedJWT = parseJwt(jwtToken)
+
+            if (msgReceived.user_id == parsedJWT.user_id) {
+                textTemplate = $("#receiver-msg-template").clone();
+            } else {
+                textTemplate = $("#sender-msg-template").clone();
+                $(textTemplate).find(".user-prof-pic").attr("src", msgReceived.profile_pic)
+            }
+
+            let d = new Date();
+            var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            let dateStr = d.getHours() + ":" + d.getMinutes() + " | " + months[d.getMonth()] + " " + d.getFullYear()
+
+            $(textTemplate).removeAttr("id")
+            $(textTemplate).find(".text-message").html(msgReceived.msg)
+            $(textTemplate).find(".date-received").html(dateStr)
+            $(textTemplate).show()
+
+            $("#chat-box").append(textTemplate)
+        };
+    }
+
+    function initMessages(chats) {
+        chats.forEach(element => {
+            let textTemplate;
+            let jwtToken = getCookie("access_token")
+            let parsedJWT = parseJwt(jwtToken)
+
+            if (element.user_id == parsedJWT.user_id) {
+                textTemplate = $("#receiver-msg-template").clone();
+            } else {
+                textTemplate = $("#sender-msg-template").clone();
+                $(textTemplate).find(".user-prof-pic").attr("src", element.profile_pic)
+            }
+
+
+            let d = new Date();
+            var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            let dateStr = d.getHours() + ":" + d.getMinutes() + " | " + months[d.getMonth()] + " " + d.getFullYear()
+
+            $(textTemplate).removeAttr("id")
+            $(textTemplate).find(".text-message").html(element.msg)
+            $(textTemplate).find(".date-received").html(dateStr)
+            $(textTemplate).show()
+
+            $("#chat-box").append(textTemplate)
+        });
+    }
+
+    /*
+    {
+        "msg": "message",
+        "user_id": 1,
+        "profile_pic": "" 
+    }
+    */
+    function sendMesageToRoom() {
+        let message = $("#text-to-send").val()
+
+        if (!conn) {
+            return;
+        }
+        if (message == "") {
+            return
+        }
+
+        let jwtToken = getCookie("access_token")
+        let parsedJWT = parseJwt(jwtToken)
+
+        /*
+        let objMsg = {
+            msg: message,
+            user_id: parsedJWT.user_id,
+            profile_pic: parsedJWT.profile_pic
+        }
+
+        let msg = JSON.stringify(objMsg)*/
+
+        conn.send(message)
+        $("#text-to-send").val("")
+    }
+
+    $(document).ready(function() {
+        $.ajax({
+            type: "GET",
+            url: host + "/joined",
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-Access-Token", getCookie("access_token"))
+            },
+            success: function(data, status, xhr) {
+                var groupchats = data.data;
+                groupchats.forEach(element => {
+                    var gcItem = $("#groupchat-item-template").clone()
+                    $(gcItem).removeAttr("id")
+                    $(gcItem).find(".room-name").html(element.name)
+                    $(gcItem).attr("room-id", element.room_id)
+                    $("#groupchat-list").append(gcItem)
+                    $(gcItem).show()
+                });
+
+            },
+            error: function(xhr, status, error) {
+                console.log(xhr.responseText)
+            },
+            dataType: "json"
+        })
+
+        $('#text-to-send').keyup(function(e) {
+            if (e.keyCode == 13) {
+                sendMesageToRoom()
+            }
+        });
+
+        if (conn == undefined) {
+            let welcomeMsgBox = $("#chat-welcome").clone();
+            $(welcomeMsgBox).show()
+
+            $("#chat-box").append(welcomeMsgBox)
+            $("#text-to-send").attr("disabled", "true")
+            $(".send-btn").attr("disabled", "true")
+        }
+    })
+</script>
+
+{{ template "footer.html" .}}
