@@ -1,13 +1,11 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -93,6 +91,7 @@ func main() {
 	r.GET("/profile/:username", getProfile)
 	r.PUT("/profile", validateSession(updateProfile))
 	r.PUT("/password", validateSession(changePassword))
+	r.PUT("/username", validateSession(changeUsername))
 	r.GET("/user/info", validateSession(getUserInfo))
 	r.POST("/upload", validateSession(uploadFile))
 
@@ -191,7 +190,6 @@ func uploadFile(c *gin.Context) {
 	c.JSON(200, StandardAPIResponse{
 		Message: filePath,
 	})
-
 }
 
 func register(c *gin.Context) {
@@ -317,7 +315,7 @@ func updateProfile(c *gin.Context) {
 	}
 
 	profilepic := c.Request.FormValue("profile_pic")
-	err := dbResource.UpdateProfile(userID, profilepic)
+	err := dbResource.UpdateUserProfpic(userID, profilepic)
 	if err != nil {
 		c.JSON(400, StandardAPIResponse{
 			Err: err.Error(),
@@ -331,16 +329,18 @@ func updateProfile(c *gin.Context) {
 		Err:     "null",
 		Message: newToken,
 	})
-
 }
 
-func changePassword(c *gin.Context) {
+func changeUsername(c *gin.Context) {
 	userID := c.GetInt64("uid")
-
-	oldpass := c.Request.FormValue("old_password")
-	newpass := c.Request.FormValue("new_password")
-
-	user, err := dbResource.GetUserByUserID(userID)
+	if userID < 1 {
+		c.JSON(400, StandardAPIResponse{
+			Err: "no user founds",
+		})
+		return
+	}
+	username := c.Request.FormValue("username")
+	err := userAuthUsecase.ChangeUsername(userID, username)
 	if err != nil {
 		c.JSON(400, StandardAPIResponse{
 			Err: err.Error(),
@@ -348,29 +348,21 @@ func changePassword(c *gin.Context) {
 		return
 	}
 
-	oldpass += user.Salt
-	h := sha256.New()
-	h.Write([]byte(oldpass))
-	hashedOldPassword := fmt.Sprintf("%x", h.Sum(nil))
+	c.JSON(201, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success update profile picture",
+	})
+}
 
-	if user.Password != hashedOldPassword {
-		c.JSON(401, StandardAPIResponse{
-			Err: "old password is wrong!",
-		})
-		return
-	}
+func changePassword(c *gin.Context) {
+	userID := c.GetInt64("uid")
 
-	//new pass
-	salt := RandStringBytes(32)
-	newpass += salt
+	oldpass := c.Request.FormValue("old_password")
+	newpass := c.Request.FormValue("new_password")
+	confirmpass := c.Request.FormValue("confirm_password")
 
-	h = sha256.New()
-	h.Write([]byte(newpass))
-	hashedNewPass := fmt.Sprintf("%x", h.Sum(nil))
-
-	err2 := dbResource.UpdateUserPassword(userID, hashedNewPass)
-
-	if err2 != nil {
+	err := userAuthUsecase.ChangePassword(userID, oldpass, newpass, confirmpass)
+	if err != nil {
 		c.JSON(400, StandardAPIResponse{
 			Err: err.Error(),
 		})
@@ -381,17 +373,6 @@ func changePassword(c *gin.Context) {
 		Err:     "null",
 		Message: "Success update password",
 	})
-
-}
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func RandStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
 }
 
 type StandardAPIResponse struct {

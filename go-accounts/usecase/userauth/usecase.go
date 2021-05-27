@@ -100,6 +100,63 @@ func (u *Usecase) GenerateJWT(userID int64, profilePic string) (string, error) {
 	return tokenString, nil
 }
 
+func (u *Usecase) ChangeUsername(userID int64, username string) error {
+	userInfo, err := u.dbRsc.GetUserByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	if username == "" {
+		return errors.New("new username cannot be empty")
+	}
+
+	if username == userInfo.Username {
+		return errors.New("new username cannot be the same as old one")
+	}
+
+	err = u.dbRsc.UpdateUserName(userID, username)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (u *Usecase) ChangePassword(userID int64, oldPassword, newPassword, confirmPassword string) error {
+	user, err := u.dbRsc.GetUserByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	oldPassword += user.Salt
+	h := sha256.New()
+	h.Write([]byte(oldPassword))
+	hashedOldPassword := fmt.Sprintf("%x", h.Sum(nil))
+
+	if user.Password != hashedOldPassword {
+		return errors.New("old password is wrong")
+	}
+
+	if confirmPassword != newPassword {
+		return errors.New("confirm password is not matched")
+	}
+
+	// change to new password
+	salt := RandStringBytes(32)
+	newPassword += salt
+
+	h = sha256.New()
+	h.Write([]byte(newPassword))
+	hashedNewPass := fmt.Sprintf("%x", h.Sum(nil))
+
+	err = u.dbRsc.UpdateUserPassword(userID, hashedNewPass)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func RandStringBytes(n int) string {

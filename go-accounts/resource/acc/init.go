@@ -19,8 +19,9 @@ type DBItf interface {
 	Register(username string, password string, salt string) error
 	GetUserByUserID(userID int64) (model.User, error)
 	GetUserByUserName(userName string) (model.User, error)
-	UpdateProfile(userID int64, profilePic string) error
-	UpdateUserPassword(userID int64, password string) error
+	UpdateUserProfpic(userID int64, newProfpic string) error
+	UpdateUserName(userID int64, newUsername string) error
+	UpdateUserPassword(userID int64, newPassword string) error
 }
 
 func NewRedisResource(rdb *redis.Client, next DBItf) DBItf {

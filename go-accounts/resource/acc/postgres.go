@@ -97,8 +97,7 @@ func (dbr *DBResource) GetUserByUserName(userName string) (model.User, error) {
 	}, nil
 }
 
-//try
-func (dbr *DBResource) UpdateProfile(userID int64, profilePic string) error {
+func (dbr *DBResource) UpdateUserProfpic(userID int64, newProfpic string) error {
 	query := `
 		UPDATE
 			account
@@ -108,7 +107,7 @@ func (dbr *DBResource) UpdateProfile(userID int64, profilePic string) error {
 			user_id = $2
 	`
 
-	_, err := dbr.db.Exec(query, profilePic, userID)
+	_, err := dbr.db.Exec(query, newProfpic, userID)
 	if err != nil {
 		return err
 	}
@@ -116,7 +115,7 @@ func (dbr *DBResource) UpdateProfile(userID int64, profilePic string) error {
 	return nil
 }
 
-func (dbr *DBResource) UpdateUserPassword(userID int64, password string) error {
+func (dbr *DBResource) UpdateUserPassword(userID int64, newPassword string) error {
 	query := `
 		UPDATE
 			account
@@ -126,7 +125,25 @@ func (dbr *DBResource) UpdateUserPassword(userID int64, password string) error {
 			user_id = $2
 	`
 
-	_, err := dbr.db.Exec(query, password, userID)
+	_, err := dbr.db.Exec(query, newPassword, userID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dbr *DBResource) UpdateUserName(userID int64, newUsername string) error {
+	query := `
+		UPDATE
+			account
+		SET 
+		    username = $1
+		WHERE
+			user_id = $2
+	`
+
+	_, err := dbr.db.Exec(query, newUsername, userID)
 	if err != nil {
 		return err
 	}
