@@ -5,9 +5,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -16,6 +20,7 @@ import (
 	_ "github.com/lib/pq"
 	authClient "github.com/lolmourne/go-accounts/client/userauth"
 	"github.com/lolmourne/go-groupchat/client"
+	"github.com/lolmourne/go-websocket/model"
 	"github.com/lolmourne/go-websocket/resource/chat"
 	"github.com/lolmourne/go-websocket/resource/user"
 	redisCli "github.com/lolmourne/r-pipeline/client"
@@ -43,17 +48,31 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 
+	cfgFile, err := os.Open("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cfgFile.Close()
+
+	cfgByte, _ := ioutil.ReadAll(cfgFile)
+
+	var cfg model.Config
+	err = json.Unmarshal(cfgByte, &cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	rdb = redis.NewClient(&redis.Options{
-		Addr:     "34.101.216.10:6379",
-		Password: "skilvulredis", // no password set
-		DB:       0,              // use default DB
+		Addr:     cfg.Redis.Host,
+		Password: cfg.Redis.Password, // no password set
+		DB:       0,                  // use default DB
 	})
 
-	redisClient := redisCli.New(redisCli.SINGLE_MODE, "34.101.216.10:6379", 10,
+	redisClient := redisCli.New(redisCli.SINGLE_MODE, cfg.Redis.Host, 10,
 		redigo.DialReadTimeout(time.Duration(30)*time.Second),
 		redigo.DialWriteTimeout(time.Duration(30)*time.Second),
 		redigo.DialConnectTimeout(time.Duration(5)*time.Second),
-		redigo.DialPassword("skilvulredis"))
+		redigo.DialPassword(cfg.Redis.Password))
 	sub = pubsub.NewRedisPubsub(redisClient)
 
 	chString := make(chan string)
@@ -65,14 +84,15 @@ func main() {
 				log.Println(msg, "from channel")
 			}
 		}
-
 	}(chString)
 
 	gcClient := client.NewClient("http://localhost:8080", time.Duration(30)*time.Second)
 	auCli := authClient.NewClient("http://localhost:7070", time.Duration(30)*time.Second)
 	userRsc := user.NewAuthCliRsc(auCli, time.Duration(60), time.Duration(30))
 
-	dbInit, err := sqlx.Connect("postgres", "host=34.101.216.10 user=skilvul password=skilvul123apa dbname=skilvul-groupchat sslmode=disable")
+	dbConStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", cfg.DB.Address, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName)
+
+	dbInit, err := sqlx.Connect("postgres", dbConStr)
 	if err != nil {
 		log.Fatalln(err)
 	}
