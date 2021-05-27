@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"math/rand"
+	"os"
 	"strconv"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/lolmourne/go-accounts/client/userauth"
 	userAuth "github.com/lolmourne/go-accounts/client/userauth"
+	"github.com/lolmourne/go-groupchat/model"
 	"github.com/lolmourne/go-groupchat/resource/groupchat"
 	groupchat2 "github.com/lolmourne/go-groupchat/usecase/groupchat"
 	redisCli "github.com/lolmourne/r-pipeline/client"
@@ -27,15 +31,32 @@ var groupChatUsecase groupchat2.UsecaseItf
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	dbInit, err := sqlx.Connect("postgres", "host=34.101.216.10 user=skilvul password=skilvul123apa dbname=skilvul-groupchat sslmode=disable")
+
+	cfgFile, err := os.Open("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cfgFile.Close()
+
+	cfgByte, _ := ioutil.ReadAll(cfgFile)
+
+	var cfg model.Config
+	err = json.Unmarshal(cfgByte, &cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dbConStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", cfg.DB.Address, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName)
+
+	dbInit, err := sqlx.Connect("postgres", dbConStr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "34.101.216.10:6379",
-		Password: "skilvulredis", // no password set
-		DB:       0,              // use default DB
+		Addr:     cfg.Redis.Host,
+		Password: cfg.Redis.Password, // no password set
+		DB:       0,                  // use default DB
 	})
 
 	dbRoomRsc := groupchat.NewRedisResource(rdb, groupchat.NewDBResource(dbInit))
@@ -45,11 +66,11 @@ func main() {
 	userClient = userauth.NewClient("http://localhost:7070", time.Duration(30)*time.Second)
 	groupChatUsecase = groupchat2.NewUseCase(dbRoomRsc)
 
-	redisClient := redisCli.New(redisCli.SINGLE_MODE, "34.101.216.10:6379", 10,
+	redisClient := redisCli.New(redisCli.SINGLE_MODE, cfg.Redis.Host, 10,
 		redigo.DialReadTimeout(time.Duration(30)*time.Second),
 		redigo.DialWriteTimeout(time.Duration(30)*time.Second),
 		redigo.DialConnectTimeout(time.Duration(5)*time.Second),
-		redigo.DialPassword("skilvulredis"))
+		redigo.DialPassword(cfg.Redis.Password))
 	pubsub := pubsub.NewRedisPubsub(redisClient)
 	pubsub.Subscribe("testsub", readPubsub, true)
 
@@ -69,6 +90,9 @@ func main() {
 	r.GET("/groupchat", validateSession(getRoomList))
 	r.GET("/joined", validateSession(getJoinedRoom))
 	r.GET("/groupchat/:room_id", getGroupchat)
+	r.GET("/participants/:room_id", getRoomParticipants)
+	r.PUT("/groupchat/:room_id", validateSession(leaveRoom))
+	r.PUT("/groupchat/leave/:room_id", validateSession(deleteRoom))
 	r.Run()
 }
 
@@ -223,14 +247,118 @@ func getRoomList(c *gin.Context) {
 	})
 }
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func RandStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+func getRoomByCategory(c *gin.Context) {
+	userID := c.GetInt64("uid")
+	catIDStr := c.Param("category_id")
+	catID, err := strconv.ParseInt(catIDStr, 10, 64)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
 	}
-	return string(b)
+
+	rooms, err := groupChatUsecase.GetRoomByCategoryID(userID, catID)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:  "null",
+		Data: rooms,
+	})
+}
+
+func getCategory(c *gin.Context) {
+	categories, err := dbRoomResource.GetCategory()
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:  "null",
+		Data: categories,
+	})
+}
+
+func getRoomParticipants(c *gin.Context) {
+	roomIDStr := c.Param("room_id")
+	roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "wrong room id",
+		})
+		return
+	}
+
+	participants, err := dbRoomResource.GetRoomParticipants(roomID)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:  "null",
+		Data: participants,
+	})
+}
+
+func leaveRoom(c *gin.Context) {
+	userID := c.GetInt64("uid")
+	roomIDStr := c.Param("room_id")
+	roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	err = dbRoomResource.LeaveRoom(userID, roomID)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success leave group chat with ID " + roomIDStr,
+	})
+}
+
+func deleteRoom(c *gin.Context) {
+	userID := c.GetInt64("uid")
+	roomIDStr := c.Param("room_id")
+	roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	err = groupChatUsecase.DeleteRoom(userID, roomID)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: "Unauthorized",
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success leave group chat with ID " + roomIDStr,
+	})
 }
 
 type StandardAPIResponse struct {

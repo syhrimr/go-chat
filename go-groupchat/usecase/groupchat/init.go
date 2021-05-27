@@ -14,7 +14,9 @@ type UsecaseItf interface {
 	EditGroupchat(name, desc, categoryID string) (model.Room, error)
 	GetRoomByID(roomID int64) (model.Room, error)
 	GetRoomList(userID int64) ([]model.Room, error)
+	GetRoomByCategoryID(userID, categoryID int64) ([]model.Room, error)
 	JoinRoom(roomID, userID int64) error
+	DeleteRoom(roomID, userID int64) error
 }
 
 func NewUseCase(dbRsc groupchat.DBItf) UsecaseItf {

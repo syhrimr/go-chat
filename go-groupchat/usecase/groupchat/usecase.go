@@ -1,6 +1,8 @@
 package groupchat
 
 import (
+	"errors"
+
 	"github.com/lolmourne/go-groupchat/model"
 )
 
@@ -38,6 +40,24 @@ func (u UseCase) GetRoomList(userID int64) ([]model.Room, error) {
 	return u.dbRoomRsc.GetRooms(userID)
 }
 
-func multiply(x, y int64) int64 {
-	return x * y
+func (u UseCase) GetRoomByCategoryID(userID, categoryID int64) ([]model.Room, error) {
+	return u.dbRoomRsc.GetRoomByCategoryID(userID, categoryID)
+}
+
+func (u UseCase) DeleteRoom(roomID, userID int64) error {
+	room, err := u.dbRoomRsc.GetRoomByID(roomID)
+	if err != nil {
+		return err
+	}
+
+	if userID != room.AdminUserID {
+		return errors.New("user is not an admin")
+	}
+
+	err = u.dbRoomRsc.DeleteRoom(roomID)
+	if err != nil {
+		return errors.New("failed to delete a room")
+	}
+
+	return nil
 }

@@ -63,3 +63,23 @@ func (dbr *RedisResource) GetRoomByID(roomID int64) (model.Room, error) {
 func (dbr *RedisResource) GetRooms(userID int64) ([]model.Room, error) {
 	return dbr.next.GetRooms(userID)
 }
+
+func (dbr *RedisResource) GetRoomByCategoryID(userID, categoryID int64) ([]model.Room, error) {
+	return dbr.next.GetRoomByCategoryID(userID, categoryID)
+}
+
+func (dbr *RedisResource) GetCategory() ([]model.Category, error) {
+	return dbr.next.GetCategory()
+}
+
+func (dbr *RedisResource) GetRoomParticipants(roomID int64) ([]model.User, error) {
+	return dbr.next.GetRoomParticipants(roomID)
+}
+
+func (dbr *RedisResource) LeaveRoom(userID, roomID int64) error {
+	return dbr.next.LeaveRoom(userID, roomID)
+}
+
+func (dbr *RedisResource) DeleteRoom(roomID int64) error {
+	return dbr.next.DeleteRoom(roomID)
+}
