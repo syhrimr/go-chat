@@ -1,0 +1,75 @@
+{{ template "header.html" .}}
+<div class="container">
+    <div class="card" style="width: 600px; margin-left: auto; margin-right: auto;">
+        <div class="card-header">
+            Create Room
+        </div>
+        <div class="card-body">
+            <form id="createForm">
+                <div class="mb-3">
+                    <label class="form-label">Room Name</label>
+                    <input type="text" class="form-control" id="name" name="name">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select class="form-control" id="category" name="category_id" placeholder="">
+                        <option value="none" selected disabled hidden>Select a category</option>
+                        <!-- Procedurally generated from database -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea rows="4" cols="50" class="form-control" id="desc" name="desc" placeholder="..."></textarea>
+                </div>
+                <input type="hidden" id="admin-id" name="admin_user_id" value="">
+                <button type="button" class="btn btn-primary" onclick="createRoom()">Create!</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+<script>
+    var host = '{{ .gc_host }}'
+
+    $(document).ready(function() {
+        $.ajax({
+            type: "GET",
+            url: host+"/explore",
+            success: function(data, status, xhr) {
+                var categories = data.data
+                categories.forEach(element => {
+                    $("#category").append($("<option>").attr("value", element.room_category_id).text(element.name))
+                })
+            },
+            error: function (xhr, status, error) {
+                console.log(xhr.responseText)
+            },
+            dataType: "json"
+        })
+    })
+    
+    function createRoom() {
+        let jwtToken = getCookie("access_token")
+        let parsedJWT = parseJwt(jwtToken)
+        document.getElementById("admin-id").value = jwtToken
+
+        $.ajax({
+            type: "POST",
+            url: host + "/groupchat",
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-Access-Token", getCookie("access_token"))
+            },
+            data: $('#createForm').serialize(),
+            success: function(data) {
+                window.location.href = "/groupchat"
+            },
+            error: function(xhr, status, error) {
+                console.log(xhr.responseText)
+            },
+            dataType: "json"
+        })
+    }
+
+</script>
+
+{{ template "footer.html" .}}

@@ -1,0 +1,57 @@
+{{ template "header.html" .}}
+<div class="container">
+    <div class="card" style="width: 600px; margin-left: auto; margin-right: auto;">
+        <div class="card-header">
+            Login
+        </div>
+        <div class="card-body">
+            <form id="changeUsernameForm">
+                <div class="mb-3">
+                    <label class="form-label">New Username</label>
+                    <input type="text" class="form-control" id="username" name="username">
+                </div>
+                <!-- Error Alert -->
+                <div id="alert-box">
+                    <div class="alert alert-danger alert-dismissible fade show" style="display: none;">
+                        <strong>Error!</strong><p class="error-message">A problem has been occurred while submitting your data.</p>
+                    </div>
+                </div>
+                <input type="hidden" id="host" value="{{ .account_host}}">
+                <button type="button" class="btn btn-primary" onclick="changeUsername()">Change!</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+<script>
+    function changeUsername() {
+        var host = '{{ .account_host }}'
+
+        $.ajax({
+            type: "PUT",
+            url: host + "/username",
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-Access-Token", getCookie("access_token"))
+            },
+            data: $('#changeUsernameForm').serialize(),
+            success: function(data, status, xhr) {
+                window.location.href = "/profile"
+            },
+            error: function(xhr, status, error) {
+                $(".error-message").text(xhr.responseText)
+                $(".alert").show()
+            },
+            dataType: "json"
+        })
+    }
+
+    $(document).ready(function() {
+        $('#text-to-send').keyup(function(e) {
+            if (e.keyCode == 13) {
+                changeUsername()
+            }
+        });
+    })
+</script>
+
+{{ template "footer.html" .}}

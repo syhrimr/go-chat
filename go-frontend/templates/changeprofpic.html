@@ -1,0 +1,98 @@
+{{ template "header.html" .}}
+<div class="container">
+    <div class="card" style="width: 600px; margin-left: auto; margin-right: auto;">
+        <div class="card-header">
+            Login
+        </div>
+        <div class="card-body">
+            <div class="alert" id="update-status" role="alert" style="display: none;">
+            </div>
+            <form id="updateForm">
+                <div class="mb-3">
+                    <label class="form-label">Change Profile Picture</label>
+                    <input type="file" class="form-control" id="profpic" name="profpic">
+                </div>
+                <input type="hidden" id="host" value="{{ .account_host}}">
+                <input type="hidden" id="pp" name="profile_pic">
+                <button type="button" class="btn btn-primary" onclick="update()">Update Profile</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+<script>
+    function update() {
+        var host = '{{ .account_host }}'
+
+        // $.ajax({
+        //     type: "POST",
+        //     url: host + "/login",
+        //     data: $('#loginForm').serialize(),
+        //     success: function(data, status, xhr) {
+        //         setCookie("access_token", data.data, 365)
+        //         window.location.href = "/groupchat/list"
+        //     },
+        //     error: function(xhr, status, error) {
+        //         console.log(xhr.responseText)
+        //     },
+        //     dataType: "json"
+        // })
+
+        var fd = new FormData();
+        var files = $('#profpic')[0].files[0];
+        fd.append('file', files);
+
+        $.ajax({
+            url: host + "/upload",
+            type: 'POST',
+            data: fd,
+            contentType: false, // NEEDED, DON'T OMIT THIS (requires jQuery 1.6+)
+            processData: false, // NEEDED, DON'T OMIT THIS
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-Access-Token", getCookie("access_token"))
+            },
+            success: function(response) {
+                console.log(response.message)
+                $("#pp").val(response.message)
+                updateProfile()
+            },
+            error: function(xhr, status, error) {
+                $("#update-status").html("Failed to Update Profile!")
+                $("#update-status").show()
+                $("#update-status").removeClass("alert-success")
+                $("#update-status").addClass("alert-danger")
+            }
+        });
+
+    }
+
+    function updateProfile() {
+        var host = '{{ .account_host }}'
+        $.ajax({
+            type: "PUT",
+            url: host + "/profile",
+            data: $('#updateForm').serialize(),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader("X-Access-Token", getCookie("access_token"))
+            },
+            success: function(data, status, xhr) {
+                console.log(data)
+                setCookie("access_token", data.message, 365)
+
+                $("#update-status").html("Success Update Profile!")
+                $("#update-status").show()
+                $("#update-status").removeClass("alert-danger")
+                $("#update-status").addClass("alert-success")
+            },
+            error: function(xhr, status, error) {
+                $("#update-status").html("Failed to Update Profile!")
+                $("#update-status").show()
+                $("#update-status").removeClass("alert-success")
+                $("#update-status").addClass("alert-danger")
+            },
+            dataType: "json"
+        })
+    }
+</script>
+
+{{ template "footer.html" .}}
