@@ -49,35 +49,31 @@ func (dbr *DBResource) GetJoinedRoom(userID int64) ([]model.Room, error) {
 }
 
 func (dbr *DBResource) CreateRoom(roomName string, adminID int64, description string, categoryID int64) error {
-	query := `
+	queryToCreate := `
+		WITH
+			ins_to_rp
+		AS (
+			INSERT INTO
+				room
+				(name, admin_user_id, description, category_id, created_at)
+			VALUES
+				($1, $2, $3, $4, $5)
+			RETURNING
+				room_id
+		)
 		INSERT INTO
-			room
-		(
-			name,
-			admin_user_id,
-			description,
-			category_id,
-			created_at
-		)
-		VALUES
-		(
-			$1,
-			$2,
-			$3,
-			$4,
-			$5
-		)
+			room_participant
+		SELECT
+			room_id, $2
+		FROM
+			ins_to_rp
 	`
 
-	res, err := dbr.db.Exec(query, roomName, adminID, description, categoryID, time.Now())
+	_, err := dbr.db.Exec(queryToCreate, roomName, adminID, description, categoryID, time.Now())
 	if err != nil {
 		return err
 	}
 
-	lastInsertID, err1 := res.LastInsertId()
-
-	log.Println("RES value:", lastInsertID, err1)
-	//TO ASK: cant get last inserted ID so cant return last inserted room record
 	return nil
 }
 
@@ -144,17 +140,18 @@ func (dbr *DBResource) GetRooms(userID int64) ([]model.Room, error) {
 			r.description 
 		FROM room r 
 		EXCEPT
-		SELECT
-			r.room_id,
-		 	r.name,
-		 	r.description
-		FROM
-			room r
-		INNER JOIN
-			room_participant rp
-		ON 	r.room_id = rp.room_id
-		WHERE
-			rp.user_id = $1
+			SELECT
+				r.room_id,
+				r.name,
+				r.description
+			FROM
+				room r
+			INNER JOIN
+				room_participant rp
+			ON 
+				r.room_id = rp.room_id
+			WHERE
+				rp.user_id = $1
 	`
 
 	rooms, err := dbr.db.Queryx(query, userID)

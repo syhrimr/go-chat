@@ -91,8 +91,8 @@ func main() {
 	r.GET("/joined", validateSession(getJoinedRoom))
 	r.GET("/groupchat/:room_id", getGroupchat)
 	r.GET("/participants/:room_id", getRoomParticipants)
-	r.PUT("/groupchat/:room_id", validateSession(leaveRoom))
-	r.PUT("/groupchat/leave/:room_id", validateSession(deleteRoom))
+	r.PUT("/groupchat/leave/:room_id", validateSession(leaveRoom))
+	r.PUT("/groupchat/delete/:room_id", validateSession(deleteRoom))
 	r.Run()
 }
 
